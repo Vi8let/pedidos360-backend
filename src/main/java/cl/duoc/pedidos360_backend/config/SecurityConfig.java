@@ -28,7 +28,7 @@ public class SecurityConfig {
                 // Seccion 20.3: Exige que cualquier peticion a /api/pedidos este autenticada con un JWT valido.
                 // NOTA (Seccion 21): Si se requiere validar scopes especificos de Cognito, se puede cambiar a:
                 // .requestMatchers("/api/pedidos").hasAuthority("SCOPE_<CUSTOM_SCOPE>")
-                .requestMatchers("/api/pedidos").authenticated()
+                .requestMatchers("/api/pedidos", "/api/pedidos/**").authenticated()
                 .anyRequest().permitAll()
             )
             // Configura la aplicacion como Resource Server OAuth 2.0.
