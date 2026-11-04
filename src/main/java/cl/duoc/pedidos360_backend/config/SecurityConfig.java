@@ -22,18 +22,40 @@ public class SecurityConfig {
             // Habilita el soporte de CORS en Spring Security para permitir peticiones desde Angular (localhost:4200)
             .cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.disable())
+            // Permite desplegar la consola web de H2 (/h2-console) dentro de un iframe
+            .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
             .authorizeHttpRequests(auth -> auth
                 // Permite las solicitudes preflight (OPTIONS) que los navegadores envian antes de enviar el Bearer token
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                // Seccion 20.3: Exige que cualquier peticion a /api/pedidos este autenticada con un JWT valido.
-                // NOTA (Seccion 21): Si se requiere validar scopes especificos de Cognito, se puede cambiar a:
-                // .requestMatchers("/api/pedidos").hasAuthority("SCOPE_<CUSTOM_SCOPE>")
+                // Permite el acceso libre a la consola H2 en desarrollo
+                .requestMatchers("/h2-console/**").permitAll()
+
+                // =========================================================================
+                // CONFIGURACION DE SEGURIDAD Y SCOPES
+                // =========================================================================
+                // OPCION 1 (Estándar con AWS API Gateway):
+                // Exige que la peticion tenga un JWT valido emitido por AWS Cognito.
+                // La validacion granular de Scopes (read, write, delete) se delega a API Gateway
+                // en 'Method Request -> Authorization Scopes'.
                 .requestMatchers("/api/pedidos", "/api/pedidos/**").authenticated()
+
+                // OPCION 2 (Seguridad Zero-Trust: validacion explicita de Scopes en el Backend):
+                // Si deseas validar los custom scopes de Cognito directamente en Spring Boot,
+                // comenta la OPCION 1 y descomenta las siguientes reglas:
+                // .requestMatchers(HttpMethod.GET, "/api/pedidos", "/api/pedidos/**")
+                //     .hasAnyAuthority("SCOPE_rs-api-pedidos/pedidos-read", "SCOPE_pedidos/read")
+                // .requestMatchers(HttpMethod.POST, "/api/pedidos")
+                //     .hasAnyAuthority("SCOPE_rs-api-pedidos/pedidos-write", "SCOPE_rs-api-pedidos/pedidos-create", "SCOPE_pedidos/write")
+                // .requestMatchers(HttpMethod.PUT, "/api/pedidos/**")
+                //     .hasAnyAuthority("SCOPE_rs-api-pedidos/pedidos-write", "SCOPE_rs-api-pedidos/pedidos-update", "SCOPE_pedidos/write")
+                // .requestMatchers(HttpMethod.DELETE, "/api/pedidos/**")
+                //     .hasAnyAuthority("SCOPE_rs-api-pedidos/pedidos-write", "SCOPE_rs-api-pedidos/pedidos-delete", "SCOPE_pedidos/delete")
+
                 .anyRequest().permitAll()
             )
             // Configura la aplicacion como Resource Server OAuth 2.0.
             // Spring interceptara la cabecera 'Authorization: Bearer <JWT>' y decodificara el token.
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 
         return http.build();
     }
@@ -53,4 +75,3 @@ public class SecurityConfig {
         return source;
     }
 }
-
