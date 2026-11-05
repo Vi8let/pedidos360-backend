@@ -20,34 +20,38 @@ public class DataInitializer {
     @Bean
     CommandLineRunner initDatabase(PedidoRepository pedidoRepository) {
         return args -> {
-            if (pedidoRepository.count() == 0) {
-                log.info("Cargando datos iniciales de pedidos en la base de datos...");
+            try {
+                if (pedidoRepository.count() == 0) {
+                    log.info("Cargando datos iniciales de pedidos en PostgreSQL...");
 
-                pedidoRepository.save(new Pedido(
-                        "Notebook Lenovo ThinkPad",
-                        "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=800&q=80",
-                        2,
-                        15,
-                        "EN_PREPARACION"
-                ));
+                    pedidoRepository.save(new Pedido(
+                            "Notebook Lenovo ThinkPad",
+                            "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=800&q=80",
+                            2,
+                            15,
+                            "EN_PREPARACION"
+                    ));
 
-                pedidoRepository.save(new Pedido(
-                        "Smartphone Samsung Galaxy",
-                        "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
-                        1,
-                        30,
-                        "DISPONIBLE"
-                ));
+                    pedidoRepository.save(new Pedido(
+                            "Smartphone Samsung Galaxy",
+                            "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
+                            1,
+                            30,
+                            "DISPONIBLE"
+                    ));
 
-                pedidoRepository.save(new Pedido(
-                        "Auriculares Sony WH-1000XM4",
-                        "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80",
-                        3,
-                        20,
-                        "ENTREGADO"
-                ));
+                    pedidoRepository.save(new Pedido(
+                            "Auriculares Sony WH-1000XM4",
+                            "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80",
+                            3,
+                            20,
+                            "ENTREGADO"
+                    ));
 
-                log.info("Se precargaron {} pedidos iniciales correctamente.", pedidoRepository.count());
+                    log.info("Se precargaron {} pedidos iniciales correctamente.", pedidoRepository.count());
+                }
+            } catch (Exception e) {
+                log.warn("[DataInitializer] Base de datos no disponible durante inicializacion de datos: {}", e.getMessage());
             }
         };
     }

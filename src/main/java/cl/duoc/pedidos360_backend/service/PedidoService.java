@@ -1,5 +1,6 @@
 package cl.duoc.pedidos360_backend.service;
 
+import cl.duoc.pedidos360_backend.config.RabbitNames;
 import cl.duoc.pedidos360_backend.exception.ResourceNotFoundException;
 import cl.duoc.pedidos360_backend.model.Pedido;
 import cl.duoc.pedidos360_backend.repository.PedidoRepository;
@@ -8,21 +9,26 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Capa de servicio encargada de la logica de negocio para la gestion de Pedidos.
+ * Capa de servicio encargada de la logica de negocio para la gestion de
+ * Pedidos.
+ * Integra el patron Transactional Outbox para asegurar que todo cambio en el
+ * catalogo
+ * genere un evento de auditoria persistido de forma atomica en la misma
+ * transaccion ACID.
  */
 @Service
 public class PedidoService {
 
     private final PedidoRepository pedidoRepository;
+    private final OutboxService outboxService;
 
-    // Inyeccion de dependencias por constructor (mejor practica recomendada por Spring)
-    public PedidoService(PedidoRepository pedidoRepository) {
+    public PedidoService(PedidoRepository pedidoRepository, OutboxService outboxService) {
         this.pedidoRepository = pedidoRepository;
+        this.outboxService = outboxService;
     }
 
     /**
      * Obtiene el listado completo de pedidos registrados en el sistema.
-     * @return Lista de pedidos.
      */
     @Transactional(readOnly = true)
     public List<Pedido> obtenerTodos() {
@@ -31,9 +37,6 @@ public class PedidoService {
 
     /**
      * Busca un pedido especifico por su identificador unico.
-     * @param id Identificador del pedido.
-     * @return El pedido encontrado.
-     * @throws ResourceNotFoundException Si el pedido con el ID especificado no existe.
      */
     @Transactional(readOnly = true)
     public Pedido obtenerPorId(Long id) {
@@ -42,35 +45,34 @@ public class PedidoService {
     }
 
     /**
-     * Registra un nuevo pedido en la base de datos aplicando validaciones de negocio:
-     * 1. Valida que 'imageUrl' no venga nula ni vacia.
-     * 2. Asigna un estado inicial por defecto ("PENDIENTE") si no fue especificado.
-     *
-     * @param pedido Datos del pedido a registrar.
-     * @return El pedido persistido con su ID generado.
+     * Registra un nuevo pedido en la base de datos y genera el evento de auditoria
+     * en la tabla Outbox de forma atomica dentro de la misma transaccion.
      */
     @Transactional
     public Pedido crearPedido(Pedido pedido) {
-        // Validacion: imageUrl no debe venir vacia
         if (pedido.getImageUrl() == null || pedido.getImageUrl().trim().isEmpty()) {
             throw new IllegalArgumentException("La URL de la imagen (imageUrl) es obligatoria y no puede estar vacía.");
         }
 
-        // Asignacion de estado inicial si no lo trae
         if (pedido.getEstado() == null || pedido.getEstado().trim().isEmpty()) {
             pedido.setEstado("PENDIENTE");
         }
 
-        return pedidoRepository.save(pedido);
+        // 1. Guardar el nuevo pedido en la tabla 'pedidos'
+        Pedido nuevoPedido = pedidoRepository.save(pedido);
+
+        // 2. Registrar evento en outbox_eventos dentro de la misma transaccion
+        outboxService.registrarEventoInventario(
+                nuevoPedido,
+                "CREACION",
+                RabbitNames.RK_PRODUCTO_CREADO);
+
+        return nuevoPedido;
     }
 
     /**
-     * Actualiza la informacion de un pedido existente.
-     *
-     * @param id Identificador del pedido a actualizar.
-     * @param detalles Nuevos datos para el pedido (producto, stock, cantidad, estado, imageUrl).
-     * @return El pedido actualizado y persistido.
-     * @throws ResourceNotFoundException Si el ID del pedido no existe.
+     * Actualiza la informacion de un pedido existente y registra el evento
+     * correspondiente en la tabla Outbox.
      */
     @Transactional
     public Pedido actualizarPedido(Long id, Pedido detalles) {
@@ -91,18 +93,32 @@ public class PedidoService {
             pedidoExistente.setEstado(detalles.getEstado().trim());
         }
 
-        return pedidoRepository.save(pedidoExistente);
+        // 1. Persistir cambios en 'pedidos'
+        Pedido pedidoActualizado = pedidoRepository.save(pedidoExistente);
+
+        // 2. Registrar evento en outbox_eventos dentro de la misma transaccion
+        outboxService.registrarEventoInventario(
+                pedidoActualizado,
+                "MODIFICACION",
+                RabbitNames.RK_PRODUCTO_MODIFICADO);
+
+        return pedidoActualizado;
     }
 
     /**
-     * Elimina un pedido del sistema por su ID.
-     *
-     * @param id Identificador del pedido a eliminar.
-     * @throws ResourceNotFoundException Si el ID del pedido no existe.
+     * Elimina un pedido del sistema.
+     * Captura la instantanea completa del producto antes de su eliminacion fisica
+     * para que el registro de auditoria conserve los datos historicos completos.
      */
     @Transactional
     public void eliminarPedido(Long id) {
+        // 1. Obtener entidad existente en memoria (Snapshot previo)
         Pedido pedidoExistente = obtenerPorId(id);
+
+        // 2. Registrar el evento en Outbox con todos los datos del producto
+        outboxService.registrarEventoEliminacion(pedidoExistente);
+
+        // 3. Ejecutar la eliminacion fisica en la tabla 'pedidos'
         pedidoRepository.delete(pedidoExistente);
     }
 }
