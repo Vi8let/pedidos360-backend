@@ -293,18 +293,19 @@ La entrega de EP3 debe sentar las bases directas para la defensa presencial de E
 
 ### Fase 6: Microservicio Consumidor de Auditoría (`pedidos360-consumer`)
 
-- [ ] `CON-01`: Crear estructura del microservicio independiente `pedidos360-consumer` con su propio `pom.xml` y clase de arranque.
-- [ ] `CON-02`: Configurar `application.properties` del consumidor conectando a `auditoria_db` y puerto independiente (8889).
-- [ ] `CON-03`: Crear entidades JPA con restricción única sobre `evento_id`: `AuditoriaInventario`, `HistoricoBajas` y `AuditoriaSeguridad`.
-- [ ] `CON-04`: Crear repositorios JPA con método `existsByEventoId(UUID eventoId)`.
-- [ ] `CON-05`: Implementar `InventarioConsumer.java` escuchando `cola.auditoria.inventario` con ACK manual e idempotencia.
-- [ ] `CON-06`: Implementar `EliminacionesConsumer.java` escuchando `cola.auditoria.eliminaciones` con ACK manual.
-- [ ] `CON-07`: Implementar `SeguridadAlertasConsumer.java` escuchando `cola.seguridad.alertas` con ACK manual.
-- [ ] `CON-08`: Implementar captura de excepciones y desvío a DLQ mediante `channel.basicNack(deliveryTag, false, false)` ante errores permanentes.
+- [x] `CON-01`: Crear estructura del microservicio independiente `pedidos360-consumer` con su propio `pom.xml` y clase de arranque.
+- [x] `CON-02`: Configurar `application.properties` del consumidor conectando a `auditoria_db` y puerto independiente (8889).
+- [x] `CON-03`: Crear entidades JPA con restricción única sobre `evento_id`: `AuditoriaInventario`, `HistoricoBajas` y `AuditoriaSeguridad`.
+- [x] `CON-04`: Crear repositorios JPA con método `existsByEventoId(UUID eventoId)`.
+- [x] `CON-05`: Implementar `InventarioConsumer.java` escuchando `cola.auditoria.inventario` con ACK manual e idempotencia.
+- [x] `CON-06`: Implementar `EliminacionesConsumer.java` escuchando `cola.auditoria.eliminaciones` con ACK manual.
+- [x] `CON-07`: Implementar `SeguridadAlertasConsumer.java` escuchando `cola.seguridad.alertas` con ACK manual.
+- [x] `CON-08`: Implementar captura de excepciones y desvío a DLQ mediante `channel.basicNack(deliveryTag, false, false)` ante errores permanentes.
+- [x] `CON-09`: Consumir las tres DLQ y persistir payload y metadatos en `auditoria_db.rabbit_mensajes_fallidos` antes del ACK.
 
 ### Fase 7: Validación Integral y Pruebas de Desempeño
 
-- [ ] `TST-01`: Ejecutar compilación completa de ambos microservicios con Maven Wrapper (`./mvnw clean compile`).
+- [x] `TST-01`: Compilar ambos microservicios con Maven Wrapper y ejecutar pruebas enfocadas de Outbox/estados y consumo/DLQ.
 - [ ] `TST-02`: Ejecutar prueba de ciclo de vida CRUD y verificar inserción automática en `pedidos360_db.outbox_eventos`.
 - [ ] `TST-03`: Ejecutar prueba de retención: apagar consumidor, emitir 3 pedidos, verificar mensajes en estado Ready en RabbitMQ, encender consumidor y validar vaciado.
 - [ ] `TST-04`: Ejecutar prueba de falla y DLQ: enviar payload con error simulado, comprobar desvío a `cola.*.dlq` y presencia de cabecera `x-death`.
@@ -329,7 +330,11 @@ La entrega de EP3 debe sentar las bases directas para la defensa presencial de E
 
 ---
 
-## 10. Problemas Pendientes y Decisiones de Usuario
+## 10. Notas históricas y estado actual
+
+Las decisiones descritas a continuación ya están resueltas: el consumer existe como proyecto independiente y Angular tiene un environment de desarrollo apuntando al backend local. Los contratos están alineados. La configuración de Cognito, API Gateway y EC2 permanece a cargo del estudiante; las pruebas integrales y de clúster requieren levantar la infraestructura externa y no se declaran como ejecutadas.
+
+> Los puntos numerados que siguen son registro histórico y quedan sustituidos por este estado actual.
 
 1. **Gestión del Repositorio para el Microservicio Consumidor:**
    - _Situación:_ La rúbrica exige que el backend corresponda a _"varios microservicios construidos en Java con Spring Boot"_.
@@ -348,6 +353,7 @@ La entrega de EP3 debe sentar las bases directas para la defensa presencial de E
 | :-----: | :---------: | :------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1.0** | 04-Nov-2026 | Antigravity AI | Creación inicial del **MASTERPLAN.md**. Integración de especificaciones de rúbricas EP3 y EP4, arquitectura PostgreSQL (2 bases lógicas), topología RabbitMQ con 3 colas y 3 DLQs, patrón Transactional Outbox, política de reintentos y ACK manual, RBAC con Cognito y lista maestra de tareas rastreables. |
 | **1.1** | 04-Nov-2026 | Antigravity AI | Incorporación de archivos de infraestructura iniciales: `docker-compose.yml`, `.env.example`, `.env`, y scripts de inicialización de bases de datos `infraestructura/init-databases.sh` e `init-databases.sql`.                                                                                              |
+| **1.2** | 05-Nov-2026 | Copilot       | Alineación de estados/API, validaciones OIDC y persistencia de errores DLQ; compilación y pruebas de productor, consumer y frontend.                                                                                                                               |
 
 ---
 

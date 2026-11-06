@@ -5,6 +5,8 @@ import cl.duoc.pedidos360_backend.exception.ResourceNotFoundException;
 import cl.duoc.pedidos360_backend.model.Pedido;
 import cl.duoc.pedidos360_backend.repository.PedidoRepository;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class PedidoService {
+
+    private static final Set<String> ESTADOS_VALIDOS = Set.of(
+            "PENDIENTE", "EN_PREPARACION", "DISPONIBLE", "ENTREGADO");
 
     private final PedidoRepository pedidoRepository;
     private final OutboxService outboxService;
@@ -57,6 +62,7 @@ public class PedidoService {
         if (pedido.getEstado() == null || pedido.getEstado().trim().isEmpty()) {
             pedido.setEstado("PENDIENTE");
         }
+        pedido.setEstado(validarEstado(pedido.getEstado()));
 
         // 1. Guardar el nuevo pedido en la tabla 'pedidos'
         Pedido nuevoPedido = pedidoRepository.save(pedido);
@@ -90,7 +96,7 @@ public class PedidoService {
         pedidoExistente.setStock(detalles.getStock());
 
         if (detalles.getEstado() != null && !detalles.getEstado().trim().isEmpty()) {
-            pedidoExistente.setEstado(detalles.getEstado().trim());
+            pedidoExistente.setEstado(validarEstado(detalles.getEstado()));
         }
 
         // 1. Persistir cambios en 'pedidos'
@@ -120,5 +126,13 @@ public class PedidoService {
 
         // 3. Ejecutar la eliminacion fisica en la tabla 'pedidos'
         pedidoRepository.delete(pedidoExistente);
+    }
+
+    private String validarEstado(String estado) {
+        String estadoNormalizado = estado.trim().toUpperCase(Locale.ROOT);
+        if (!ESTADOS_VALIDOS.contains(estadoNormalizado)) {
+            throw new IllegalArgumentException("Estado no válido. Valores permitidos: " + ESTADOS_VALIDOS);
+        }
+        return estadoNormalizado;
     }
 }

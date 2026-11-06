@@ -1,13 +1,16 @@
 package cl.duoc.pedidos360_backend.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
-import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.SimpleMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -18,6 +21,8 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class RabbitConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(RabbitConfig.class);
 
     // =========================================================================
     // 1. EXCHANGES PRINCIPALES Y DLX
@@ -136,12 +141,23 @@ public class RabbitConfig {
     }
 
     // =========================================================================
-    // 6. CONVERTIDOR DE MENSAJES JSON
+    // 6. RabbitTemplate con payload String JSON ya serializado + ReturnsCallback
     // =========================================================================
 
     @Bean
-    public MessageConverter jsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
+        RabbitTemplate template = new RabbitTemplate(connectionFactory);
+        // El Outbox ya serializa a JSON String; evitar doble encode con Jackson converter
+        template.setMessageConverter(new SimpleMessageConverter());
+        template.setMandatory(true);
+        template.setReturnsCallback(returned -> log.error(
+                "[RABBIT RETURNS] Mensaje no enrutado. exchange={}, routingKey={}, replyCode={}, replyText={}, body={}",
+                returned.getExchange(),
+                returned.getRoutingKey(),
+                returned.getReplyCode(),
+                returned.getReplyText(),
+                new String(returned.getMessage().getBody())
+        ));
+        return template;
     }
 }
-

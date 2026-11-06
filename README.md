@@ -2,8 +2,8 @@
 
 > **Asignatura:** Desarrollo Cloud Native I (DSY1107) — Duoc UC  
 > **Documento:** Especificación Arquitectónica y Auditoría Técnica Definitiva (EP3 / EP4)  
-> **Estado del Repositorio:** Backend Spring Boot funcional (CRUD JPA con base H2 en memoria y OAuth2 Resource Server básico).  
-> **Estado de la Propuesta:** Diseño arquitectónico validado para integración de PostgreSQL (Docker), RabbitMQ (Docker), Patrón Outbox, RBAC y Auditoría Asíncrona.
+> **Estado del Repositorio:** Backend Spring Boot con CRUD PostgreSQL, OAuth2 Resource Server, RBAC y productor RabbitMQ con Transactional Outbox.  
+> **Consumidor:** El microservicio independiente `pedidos360-consumer` persiste auditoría y mensajes fallidos de DLQ.
 
 ---
 
@@ -21,9 +21,9 @@ El proyecto opera como un **Backoffice de Catálogo e Inventario de Productos Te
 - **Lenguaje:** Java 17.
 - **Framework:** Spring Boot `4.1.1` (parent en `pom.xml`), compilando con **Spring Framework `7.0.9`** (según dependencias Maven resueltas).
   - _Compatibilidad comprobada:_ La clase `org.springframework.web.client.RestClient` (introducida en Spring 6.1) y Spring AMQP son plenamente compatibles.
-- **Base de Datos Actual:** H2 Database en memoria (`jdbc:h2:mem:pedidosdb`).
+- **Persistencia:** PostgreSQL 16 (`pedidos360_db` para pedidos/Outbox y `auditoria_db` para auditoría).
 - **Seguridad e Identidad:** Spring Security configurado como OAuth 2.0 Resource Server, validando tokens JWT emitidos por Amazon Cognito User Pool `us-east-1_C1DQHPBOn`.
-- **Frontend Vinculado (`pedidos360-front`):** SPA Angular 17+ con `angular-oauth2-oidc` implementando Authorization Code Flow con PKCE.
+- **Frontend Vinculado (`pedidos360-frontend`):** SPA Angular 22 con `angular-oauth2-oidc` implementando Authorization Code Flow con PKCE.
 
 ### 3. Entidad Real `Pedido.java` (Comparación con la Base de Datos)
 
@@ -49,7 +49,7 @@ CREATE TABLE pedidos (
 );
 ```
 
-Las marcas temporales de trazabilidad pertenecen al dominio de auditoría y se gestionan en las tablas `outbox_eventos` y `auditoria_inventario`.
+Las marcas temporales de trazabilidad pertenecen al dominio de auditoría y se gestionan en `outbox_eventos`, `auditoria_inventario`, `historico_bajas`, `auditoria_seguridad` y `rabbit_mensajes_fallidos`.
 
 ### 4. Endpoints REST Existentes (`/api/pedidos`)
 
@@ -112,7 +112,7 @@ Para asegurar el sistema, se implementa autorización basada en roles (RBAC) en 
 
 ### 1. Modelo de Persistencia: PostgreSQL (Dos Bases de Datos Lógicas)
 
-Se descarta H2 como base principal y se adopta **PostgreSQL 16 en Docker**, separando responsabilidades:
+Se utiliza **PostgreSQL 16 en Docker**, separando responsabilidades:
 
 ```
 ┌────────────────────────────────────────────────────────┐
@@ -182,7 +182,7 @@ En sistemas distribuidos **no existe la "cero pérdida absoluta" de eventos** an
 
 1. **Publisher Confirms y Mensajes no Enrutados:**
    - RabbitMQ confirma con ACK cuando el mensaje persiste en cola duradera.
-   - Se activa `spring.rabbitmq.template.mandatory=true` con un `ReturnsCallback` para interceptar mensajes no enrutables y evitar que el broker los descarte silenciosamente.
+   - Se activa `spring.rabbitmq.template.mandatory=true` con un `ReturnsCallback`; un mensaje retornado no se marca como publicado en el Outbox aunque el broker confirme su publicación al exchange.
 2. **Posibilidad de Duplicados:** Si RabbitMQ guarda el mensaje pero el ACK se pierde por un corte de red, el Outbox worker reintentará el envío. El mensaje se entregará duplicado a RabbitMQ.
 3. **Idempotencia en el Consumidor:** El consumidor evita registros duplicados en `auditoria_db` comprobando la clave única `evento_id` (UUID). Si el ID ya existe, emite `basicAck` y descarta la inserción repetida.
 
@@ -297,14 +297,22 @@ RabbitMQ detecta que `requeue=false` y que la cola tiene definido el argumento `
 
 ---
 
-## 🛠️ Guía Rápida de Ejecución Local Actual (Sin RabbitMQ ni PostgreSQL)
+## 🛠️ Ejecución local
 
 ```bash
-# Ejecutar Backend actual en puerto 8888 (Base H2 en memoria)
-./mvnw clean spring-boot:run
+# Desde pedidos360-backend: PostgreSQL y RabbitMQ
+docker compose up -d
 
-# Consola de Base de Datos H2
-URL: http://localhost:8888/h2-console
-JDBC URL: jdbc:h2:mem:pedidosdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-Usuario: sa | Clave: (en blanco)
+# Backend productor (puerto 8888)
+./mvnw spring-boot:run
+
+# En otra terminal, desde pedidos360-consumer (puerto 8889)
+./mvnw spring-boot:run
+
+# En otra terminal, desde pedidos360-frontend
+npm start
 ```
+
+En Windows se puede usar `mvnw.cmd` en lugar de `./mvnw`. El frontend de desarrollo usa `http://localhost:8888/api/pedidos`; la URL productiva de AWS permanece en el environment de producción y no forma parte de esta configuración local.
+
+El consumidor registra en `auditoria_db.rabbit_mensajes_fallidos` el payload y el motivo detallado antes de enviar el NACK; el listener de DLQ añade la cola de destino, routing key y motivo de RabbitMQ. Solo confirma el mensaje de DLQ después de persistir el registro; si PostgreSQL no está disponible, el ACK no se emite. Los mensajes que aún no tengan consumidor siguen retenidos por las colas durables de RabbitMQ y el volumen `rabbitmq_data`.

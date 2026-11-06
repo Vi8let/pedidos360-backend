@@ -23,6 +23,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.core.ReturnedMessage;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 @ExtendWith(MockitoExtension.class)
@@ -114,6 +117,46 @@ class OutboxPublisherWorkerTest {
 
         assertEquals(2, evento.getReintentos());
         assertEquals("PENDIENTE", evento.getEstado());
+        verify(outboxRepository).save(evento);
+    }
+
+    @Test
+    void procesarEventosPendientes_cuandoMensajeNoTieneRuta_noMarcaPublicado() {
+        OutboxEvento evento = new OutboxEvento();
+        evento.setId(UUID.randomUUID());
+        evento.setTipoEvento("PRODUCTO_CREADO");
+        evento.setExchange("pedidos.auditoria.topic");
+        evento.setRoutingKey("inventario.producto.sin_binding");
+        evento.setPayload("{\"eventoId\":\"jkl-012\"}");
+        evento.setEstado("PENDIENTE");
+        evento.setReintentos(0);
+
+        when(outboxRepository.findTop50ByEstadoOrderByCreadoEnAsc("PENDIENTE"))
+                .thenReturn(List.of(evento));
+
+        doAnswer(invocation -> {
+            CorrelationData correlationData = invocation.getArgument(4);
+            correlationData.setReturned(new ReturnedMessage(
+                    new Message(evento.getPayload().getBytes(), new MessageProperties()),
+                    312,
+                    "NO_ROUTE",
+                    evento.getExchange(),
+                    evento.getRoutingKey()
+            ));
+            correlationData.getFuture().complete(new CorrelationData.Confirm(true, null));
+            return null;
+        }).when(rabbitTemplate).convertAndSend(
+                eq(evento.getExchange()),
+                eq(evento.getRoutingKey()),
+                eq(evento.getPayload()),
+                any(),
+                any(CorrelationData.class)
+        );
+
+        worker.procesarEventosPendientes();
+
+        assertEquals("PENDIENTE", evento.getEstado());
+        assertEquals(1, evento.getReintentos());
         verify(outboxRepository).save(evento);
     }
 
