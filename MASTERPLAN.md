@@ -265,7 +265,7 @@ La entrega de EP3 debe sentar las bases directas para la defensa presencial de E
 - [x] `BD-02`: Actualizar `application.properties` con cadena de conexión a `pedidos360_db` y configuración de RabbitMQ.
 - [x] `BD-03`: Validar que la entidad `Pedido.java` mantenga exactamente sus 6 atributos operacionales y sea compatible con PostgreSQL.
 - [x] `BD-04`: Crear entidad `OutboxEvento.java` y repositorio `OutboxEventoRepository.java` en `pedidos360-backend`.
-- [ ] `BD-05`: Crear archivo de migración o script DDL para inicializar tablas `pedidos` y `outbox_eventos`.
+- [x] `BD-05`: Crear archivo de migración o script DDL para inicializar tablas `pedidos` y `outbox_eventos` (`infraestructura/ddl-pedidos360_db.sql` y `ddl-auditoria_db.sql`).
 
 ### Fase 3: Seguridad, Cognito y Control de Acceso (RBAC)
 
@@ -293,23 +293,23 @@ La entrega de EP3 debe sentar las bases directas para la defensa presencial de E
 
 ### Fase 6: Microservicio Consumidor de Auditoría (`pedidos360-consumer`)
 
-- [ ] `CON-01`: Crear estructura del microservicio independiente `pedidos360-consumer` con su propio `pom.xml` y clase de arranque.
-- [ ] `CON-02`: Configurar `application.properties` del consumidor conectando a `auditoria_db` y puerto independiente (8889).
-- [ ] `CON-03`: Crear entidades JPA con restricción única sobre `evento_id`: `AuditoriaInventario`, `HistoricoBajas` y `AuditoriaSeguridad`.
-- [ ] `CON-04`: Crear repositorios JPA con método `existsByEventoId(UUID eventoId)`.
-- [ ] `CON-05`: Implementar `InventarioConsumer.java` escuchando `cola.auditoria.inventario` con ACK manual e idempotencia.
-- [ ] `CON-06`: Implementar `EliminacionesConsumer.java` escuchando `cola.auditoria.eliminaciones` con ACK manual.
-- [ ] `CON-07`: Implementar `SeguridadAlertasConsumer.java` escuchando `cola.seguridad.alertas` con ACK manual.
-- [ ] `CON-08`: Implementar captura de excepciones y desvío a DLQ mediante `channel.basicNack(deliveryTag, false, false)` ante errores permanentes.
+- [x] `CON-01`: Crear estructura del microservicio independiente `pedidos360-consumer` con su propio `pom.xml` y clase de arranque en repositorio separado (`C:\DUOC 2026\Desarrollo Cloud Native I 003V\pedidos360-consumer`).
+- [x] `CON-02`: Configurar `application.properties` del consumidor conectando a `auditoria_db` y puerto independiente (8889).
+- [x] `CON-03`: Crear entidades JPA con restricción única sobre `evento_id`: `AuditoriaInventario`, `HistoricoBajas` y `AuditoriaSeguridad`.
+- [x] `CON-04`: Crear repositorios JPA con método `existsByEventoId(UUID eventoId)` para garantizar idempotencia.
+- [x] `CON-05`: Implementar `InventarioConsumer.java` escuchando `cola.auditoria.inventario` con ACK manual e idempotencia.
+- [x] `CON-06`: Implementar `EliminacionesConsumer.java` escuchando `cola.auditoria.eliminaciones` con ACK manual y almacenamiento de snapshot completo.
+- [x] `CON-07`: Implementar `SeguridadAlertasConsumer.java` escuchando `cola.seguridad.alertas` con ACK manual.
+- [x] `CON-08`: Implementar captura de excepciones y desvío a DLQ mediante `channel.basicNack(deliveryTag, false, false)` ante errores permanentes.
 
 ### Fase 7: Validación Integral y Pruebas de Desempeño
 
-- [ ] `TST-01`: Ejecutar compilación completa de ambos microservicios con Maven Wrapper (`./mvnw clean compile`).
+- [x] `TST-01`: Ejecutar compilación y pruebas completas de ambos microservicios con Maven Wrapper (`./mvnw clean test` en backend y consumer: 40 tests en backend + 9 tests en consumer = 49 tests pasando).
 - [ ] `TST-02`: Ejecutar prueba de ciclo de vida CRUD y verificar inserción automática en `pedidos360_db.outbox_eventos`.
 - [ ] `TST-03`: Ejecutar prueba de retención: apagar consumidor, emitir 3 pedidos, verificar mensajes en estado Ready en RabbitMQ, encender consumidor y validar vaciado.
 - [ ] `TST-04`: Ejecutar prueba de falla y DLQ: enviar payload con error simulado, comprobar desvío a `cola.*.dlq` y presencia de cabecera `x-death`.
 - [ ] `TST-05`: Ejecutar prueba de seguridad: emitir mutación con usuario sin grupo Admin y comprobar recepción de alerta en `cola.seguridad.alertas`.
-- [ ] `TST-06`: Crear archivo `compose.cluster.yaml` y script de verificación de clúster para preparación de EP4.
+- [x] `TST-06`: Crear archivo `compose.cluster.yaml` y script de verificación de clúster para preparación de EP4 (`infraestructura/compose.cluster.yaml` y `unir-cluster.ps1`).
 
 ---
 
@@ -348,6 +348,7 @@ La entrega de EP3 debe sentar las bases directas para la defensa presencial de E
 | :-----: | :---------: | :------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1.0** | 04-Nov-2026 | Antigravity AI | Creación inicial del **MASTERPLAN.md**. Integración de especificaciones de rúbricas EP3 y EP4, arquitectura PostgreSQL (2 bases lógicas), topología RabbitMQ con 3 colas y 3 DLQs, patrón Transactional Outbox, política de reintentos y ACK manual, RBAC con Cognito y lista maestra de tareas rastreables. |
 | **1.1** | 04-Nov-2026 | Antigravity AI | Incorporación de archivos de infraestructura iniciales: `docker-compose.yml`, `.env.example`, `.env`, y scripts de inicialización de bases de datos `infraestructura/init-databases.sh` e `init-databases.sql`.                                                                                              |
+| **1.2** | 06-Nov-2026 | Antigravity AI | Implementación completa de Fases 1 a 6 y preparación EP4: Backend principal con Outbox, RabbitConfig, Security RBAC Cognito, RabbitAdminController; Microservicio independiente `pedidos360-consumer` con ACK manual, DLQ e idempotencia en `auditoria_db`; scripts DDL y clúster RabbitMQ `compose.cluster.yaml`. |
 
 ---
 
