@@ -70,6 +70,15 @@ class PedidoServiceTest {
     }
 
     @Test
+    void testCrearPedidoConEstadoNoSoportadoLanzaExcepcion() {
+        Pedido invalido = new Pedido("Notebook", "https://ejemplo.com/notebook.jpg", 1, 5, "ENVIADO");
+
+        assertThrows(IllegalArgumentException.class, () -> pedidoService.crearPedido(invalido));
+        verify(pedidoRepository, never()).save(any());
+        verify(outboxService, never()).registrarEventoInventario(any(), any(), any());
+    }
+
+    @Test
     void testActualizarPedidoExitosoGeneraEventoOutbox() {
         when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedidoMock));
         when(pedidoRepository.save(any(Pedido.class))).thenReturn(pedidoMock);
@@ -116,4 +125,3 @@ class PedidoServiceTest {
         verify(pedidoRepository, never()).delete(any());
     }
 }
-

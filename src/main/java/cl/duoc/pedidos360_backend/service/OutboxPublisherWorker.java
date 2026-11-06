@@ -59,12 +59,12 @@ public class OutboxPublisherWorker {
 
     /**
      * Publica un evento individual a RabbitMQ utilizando Publisher Confirms.
+     * Solo marca PUBLICADO si el broker confirma ACK dentro del timeout.
      */
     public void publicarEvento(OutboxEvento evento) {
         try {
             CorrelationData correlationData = new CorrelationData(evento.getId().toString());
 
-            // Envio con propiedades persistentes y content-type JSON
             rabbitTemplate.convertAndSend(
                     evento.getExchange(),
                     evento.getRoutingKey(),
@@ -78,17 +78,24 @@ public class OutboxPublisherWorker {
                     correlationData
             );
 
-            // Evaluacion de Publisher Confirm (espera hasta 3 segundos por el ACK del broker)
-            boolean confirmado = true;
+            boolean confirmado = false;
             try {
                 CorrelationData.Confirm confirm = correlationData.getFuture().get(3, TimeUnit.SECONDS);
-                if (confirm != null && !confirm.isAck()) {
-                    confirmado = false;
-                    throw new RuntimeException("Broker devolvio NACK para evento: " + confirm.getReason());
+                if (confirm != null && confirm.isAck()) {
+                    if (correlationData.getReturned() != null) {
+                        throw new IllegalStateException("RabbitMQ no enruto el mensaje: "
+                                + correlationData.getReturned().getReplyText());
+                    }
+                    confirmado = true;
+                } else {
+                    String reason = confirm != null ? confirm.getReason() : "confirm nulo";
+                    throw new IllegalStateException("Broker devolvio NACK para evento: " + reason);
                 }
             } catch (Exception ex) {
-                // Si el future lanza excepcion o timeout en entorno sin broker conectado, se maneja en el catch exterior
-                log.warn("[OUTBOX WORKER] Confirmacion de broker pendiente o no disponible: {}", ex.getMessage());
+                log.warn("[OUTBOX WORKER] Confirmacion de broker pendiente o fallida para [{}]: {}",
+                        evento.getId(), ex.getMessage());
+                registrarFalla(evento, ex.getMessage());
+                return;
             }
 
             if (confirmado) {
@@ -102,21 +109,24 @@ public class OutboxPublisherWorker {
             }
 
         } catch (Exception e) {
-            int nuevosReintentos = evento.getReintentos() + 1;
-            evento.setReintentos(nuevosReintentos);
-            evento.setUltimoError(e.getMessage());
-
-            if (nuevosReintentos >= MAX_REINTENTOS) {
-                evento.setEstado("FALLIDO");
-                log.error("[OUTBOX WORKER] Evento [{}] alcanzo el maximo de {} reintentos. Marcado como FALLIDO. Causa: {}",
-                        evento.getId(), MAX_REINTENTOS, e.getMessage());
-            } else {
-                log.warn("[OUTBOX WORKER] Falla al publicar evento [{}] (intento {}/{}). Causa: {}",
-                        evento.getId(), nuevosReintentos, MAX_REINTENTOS, e.getMessage());
-            }
-
-            outboxRepository.save(evento);
+            registrarFalla(evento, e.getMessage());
         }
     }
-}
 
+    private void registrarFalla(OutboxEvento evento, String mensajeError) {
+        int nuevosReintentos = evento.getReintentos() + 1;
+        evento.setReintentos(nuevosReintentos);
+        evento.setUltimoError(mensajeError);
+
+        if (nuevosReintentos >= MAX_REINTENTOS) {
+            evento.setEstado("FALLIDO");
+            log.error("[OUTBOX WORKER] Evento [{}] alcanzo el maximo de {} reintentos. Marcado como FALLIDO. Causa: {}",
+                    evento.getId(), MAX_REINTENTOS, mensajeError);
+        } else {
+            log.warn("[OUTBOX WORKER] Falla al publicar evento [{}] (intento {}/{}). Causa: {}",
+                    evento.getId(), nuevosReintentos, MAX_REINTENTOS, mensajeError);
+        }
+
+        outboxRepository.save(evento);
+    }
+}

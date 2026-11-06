@@ -1,6 +1,7 @@
 package cl.duoc.pedidos360_backend.config;
 
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -57,8 +58,8 @@ public class SecurityConfig {
                         // Solicitudes preflight (OPTIONS) permitidas para negociación CORS
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Endpoints administrativos de RabbitMQ (gestionados por API interna)
-                        .requestMatchers("/api/admin/**").permitAll()
+                        // Administracion RabbitMQ: solo Admin (antes permitAll — riesgo critico)
+                        .requestMatchers("/api/admin/**").hasRole("Admin")
 
                         // Reglas de negocio para /api/pedidos
                         // GET: acceso de solo lectura para cualquier usuario autenticado
@@ -84,12 +85,12 @@ public class SecurityConfig {
     }
 
     @Bean
-    CorsConfigurationSource corsConfigurationSource() {
+    CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins:http://localhost:4200}") List<String> allowedOrigins) {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Origen del frontend Angular de laboratorio
-        configuration.setAllowedOrigins(List.of("http://localhost:4200", "*"));
+        configuration.setAllowedOrigins(allowedOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "*"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setExposedHeaders(List.of("Authorization"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
