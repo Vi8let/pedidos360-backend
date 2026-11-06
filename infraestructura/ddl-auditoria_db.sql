@@ -54,3 +54,4 @@ CREATE TABLE IF NOT EXISTS auditoria_seguridad (
     procesado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT uk_auditoria_seguridad_evento_id UNIQUE (evento_id)
 );
+

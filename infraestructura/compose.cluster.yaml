@@ -60,3 +60,4 @@ networks:
 volumes:
   rabbit1_data:
   rabbit2_data:
+

@@ -8,3 +8,4 @@ docker exec rabbit2 rabbitmqctl start_app
 
 Write-Host "`nEstado del cluster:" -ForegroundColor Green
 docker exec rabbit1 rabbitmqctl cluster_status
+

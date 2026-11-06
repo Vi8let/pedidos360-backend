@@ -30,3 +30,4 @@ CREATE TABLE IF NOT EXISTS outbox_eventos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_outbox_estado_creado ON outbox_eventos(estado, creado_en ASC);
+
