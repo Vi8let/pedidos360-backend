@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS auditoria_inventario (
     procesado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT uk_auditoria_inventario_evento_id UNIQUE (evento_id)
 );
+
 -- Tabla de Historico de Bajas (eliminaciones con snapshot completo)
 CREATE TABLE IF NOT EXISTS historico_bajas (
     id BIGSERIAL PRIMARY KEY,
@@ -52,4 +53,15 @@ CREATE TABLE IF NOT EXISTS auditoria_seguridad (
     payload TEXT,
     procesado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT uk_auditoria_seguridad_evento_id UNIQUE (evento_id)
+);
+
+-- Tabla de Registro de Mensajes Fallidos / DLQ
+CREATE TABLE IF NOT EXISTS rabbit_mensajes_fallidos (
+    id BIGSERIAL PRIMARY KEY,
+    cola_origen VARCHAR(100) NOT NULL,
+    routing_key VARCHAR(150),
+    exchange VARCHAR(150),
+    payload TEXT,
+    motivo_error TEXT,
+    fecha_fallo TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
