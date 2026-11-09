@@ -2,7 +2,8 @@
 
 > **Asignatura:** Desarrollo Cloud Native I (DSY1107) — Duoc UC  
 > **Evaluaciones:** Evaluación Parcial 3 (EP3) y Evaluación Parcial 4 (EP4)  
-> **Estado del Repositorio:** Backend Spring Boot con CRUD PostgreSQL, OAuth2 Resource Server, RBAC con AWS Cognito, Transactional Outbox y publicación asíncrona hacia RabbitMQ.
+> **Estado del Repositorio:** Backend Spring Boot con CRUD PostgreSQL, OAuth2 Resource Server, RBAC con AWS Cognito, Transactional Outbox y publicación asíncrona hacia RabbitMQ.  
+> **Consumidor:** El microservicio independiente `pedidos360-consumer` persiste auditoría y mensajes fallidos de DLQ en `auditoria_db`.
 
 ---
 
